@@ -526,6 +526,10 @@ class Order:
         [OCO]: https://www.investopedia.com/terms/o/oco.asp
         """
         return bool(self.__parent_trade)
+    
+    @property
+    def exact_price(self):
+        return self.__exact_price
 
 
 class Trade:
