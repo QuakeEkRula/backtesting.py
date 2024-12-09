@@ -200,7 +200,8 @@ class Strategy(metaclass=ABCMeta):
             stop: Optional[float] = None,
             sl: Optional[float] = None,
             tp: Optional[float] = None,
-            tag: object = None):
+            tag: object = None,
+            exact_price:float=None):
         """
         Place a new long order. For explanation of parameters, see `Order` and its properties.
 
@@ -210,7 +211,7 @@ class Strategy(metaclass=ABCMeta):
         """
         assert 0 < size < 1 or round(size) == size, \
             "size must be a positive fraction of equity, or a positive whole number of units"
-        return self._broker.new_order(size, limit, stop, sl, tp, tag)
+        return self._broker.new_order(size, limit, stop, sl, tp, tag, exact_price)
 
     def sell(self, *,
              size: float = _FULL_EQUITY,
@@ -218,7 +219,8 @@ class Strategy(metaclass=ABCMeta):
              stop: Optional[float] = None,
              sl: Optional[float] = None,
              tp: Optional[float] = None,
-             tag: object = None):
+             tag: object = None,
+             exact_price:float=None):
         """
         Place a new short order. For explanation of parameters, see `Order` and its properties.
 
@@ -230,7 +232,7 @@ class Strategy(metaclass=ABCMeta):
         """
         assert 0 < size < 1 or round(size) == size, \
             "size must be a positive fraction of equity, or a positive whole number of units"
-        return self._broker.new_order(-size, limit, stop, sl, tp, tag)
+        return self._broker.new_order(-size, limit, stop, sl, tp, tag, exact_price)
 
     @property
     def equity(self) -> float:
@@ -389,7 +391,8 @@ class Order:
                  sl_price: Optional[float] = None,
                  tp_price: Optional[float] = None,
                  parent_trade: Optional['Trade'] = None,
-                 tag: object = None):
+                 tag: object = None,
+                 exact_price:float=None):
         self.__broker = broker
         assert size != 0
         self.__size = size
@@ -399,6 +402,7 @@ class Order:
         self.__tp_price = tp_price
         self.__parent_trade = parent_trade
         self.__tag = tag
+        self.__exact_price = exact_price
 
     def _replace(self, **kwargs):
         for k, v in kwargs.items():
@@ -415,6 +419,7 @@ class Order:
                                                  ('tp', self.__tp_price),
                                                  ('contingent', self.is_contingent),
                                                  ('tag', self.__tag),
+                                                 ('exact_price', self.__exact_price)
                                              ) if value is not None))
 
     def cancel(self):
@@ -729,6 +734,7 @@ class _Broker:
                   sl: Optional[float] = None,
                   tp: Optional[float] = None,
                   tag: object = None,
+                  exact_price:float=None,
                   *,
                   trade: Optional[Trade] = None):
         """
@@ -754,7 +760,7 @@ class _Broker:
                     "Short orders require: "
                     f"TP ({tp}) < LIMIT ({limit or stop or adjusted_price}) < SL ({sl})")
 
-        order = Order(self, size, limit, stop, sl, tp, trade, tag)
+        order = Order(self, size, limit, stop, sl, tp, trade, tag, exact_price)
         # Put the new order in the order queue,
         # inserting SL/TP/trade-closing orders in-front
         if trade:
@@ -855,7 +861,11 @@ class _Broker:
                          max(stop_price or open, order.limit))
             else:
                 # Market-if-touched / market order
-                price = prev_close if self._trade_on_close else open
+                if order.exact_price:
+                    price = order.exact_price
+                else:
+                    price = prev_close if self._trade_on_close else open
+
                 price = (max(price, stop_price or -np.inf)
                          if order.is_long else
                          min(price, stop_price or np.inf))
