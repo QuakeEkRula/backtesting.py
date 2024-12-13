@@ -751,7 +751,11 @@ class _Broker:
         tp = tp and float(tp)
 
         is_long = size > 0
-        adjusted_price = self._adjusted_price(size)
+
+        if exact_price:
+            adjusted_price = self._adjusted_price(size=size, price=exact_price)
+        else:
+            adjusted_price = self._adjusted_price(size)
 
         if is_long:
             if not (sl or -np.inf) < (limit or stop or adjusted_price) < (tp or np.inf):
